@@ -3,6 +3,7 @@ import os
 import sys
 import time
 from json import JSONDecodeError
+from http import HTTPStatus
 
 import requests
 import telegram
@@ -56,6 +57,11 @@ def get_api_answer(current_timestamp):
                       f'недоступен. Код ответа API: {response.status_code}.')
         raise Exception(f'Эндпоинт {ENDPOINT} недоступен.'
                         f'Код ответа API: {response.status_code}.')
+    if response.status_code != HTTPStatus.OK:
+        logging.error(f'Сбой в работе программы: Эндпоинт {ENDPOINT}'
+                      f'недоступен. Код ответа API: {response.status_code}.')
+        raise Exception(f'Эндпоинт {ENDPOINT} недоступен.'
+                        f'Код ответа API: {response.status_code}.')
     try:
         response = response.json()
     except JSONDecodeError:
@@ -69,13 +75,11 @@ def get_api_answer(current_timestamp):
 
 def check_response(response):
     """Проверяет ответ API на корректность."""
-    try:
-        homework_list = response['homeworks']
-    except Exception:
-        logging.error('В полученных с сервера данных '
-                      'отсутствует ключ homeworks.')
-        raise KeyError('В полученных с сервера данных '
-                       'отсутствует ключ homeworks.')
+    homework_list = response['homeworks']
+    if type(homework_list) != list:
+        logging.error('homeworks не содержит список')
+        raise KeyError('homeworks не содержит список')
+
     return homework_list
 
 
@@ -89,13 +93,12 @@ def parse_status(homework):
         raise KeyError('В полученных с сервера данных '
                        'отсутствует ключ status.')
     try:
-        homework_name = homework['lesson_name']
+        homework_name = homework['homework_name']
     except Exception:
         logging.error('В полученных с сервера данных '
-                      'отсутствует ключ lesson_name.')
+                      'отсутствует ключ homework_name.')
         raise KeyError('В полученных с сервера данных '
-                       'отсутствует ключ lesson_name.')
-
+                       'отсутствует ключ homework_name.')
     if homework_status not in HOMEWORK_STATUSES.keys():
         logging.error(f'Статус {homework_status} отсутствует '
                       'в словаре HOMEWORK_STATUSES.')
@@ -108,16 +111,13 @@ def parse_status(homework):
 
 def check_tokens():
     """Проверяет доступность переменных окружения."""
-    venv = {'PRACTICUM_TOKEN': bool(PRACTICUM_TOKEN),
-            'TELEGRAM_TOKEN': bool(TELEGRAM_TOKEN),
-            'TELEGRAM_CHAT_ID': bool(TELEGRAM_CHAT_ID)}
-    for key, value in venv.items():
-        if not value:
-            logging.critical("Отсутствует обязательная переменная окружения: "
-                             f"'{key}'. Программа принудительно остановлена.")
-            raise Exception("Отсутствует обязательная переменная окружения: "
-                            f"'{key}'. Программа принудительно остановлена.")
-    return True
+    venv = (bool(PRACTICUM_TOKEN),
+            bool(TELEGRAM_TOKEN),
+            bool(TELEGRAM_CHAT_ID))
+    if False in venv:
+        return False
+    else:
+        return True
 
 
 def main():
@@ -127,7 +127,11 @@ def main():
 
     error_message = ''
 
-    check_tokens()
+    if not check_tokens():
+        logging.critical('Отсутствует обязательная переменная окружения. '
+                         'Программа принудительно остановлена.')
+        raise Exception('Отсутствует обязательная переменная окружения. '
+                        'Программа принудительно остановлена.')
 
     while True:
         try:
