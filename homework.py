@@ -21,7 +21,10 @@ TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s',
-    level=logging.INFO)
+    level=logging.INFO,
+    filename='main.log',
+    filemode='w'
+)
 
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler(stream=sys.stdout)
@@ -136,6 +139,7 @@ def main():
                 error_message = message
         finally:
             time.sleep(RETRY_TIME)
+
 
 if __name__ == '__main__':
     main()
