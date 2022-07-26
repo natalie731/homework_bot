@@ -2,12 +2,14 @@ import logging
 import os
 import sys
 import time
-from json import JSONDecodeError
 from http import HTTPStatus
+from json import JSONDecodeError
 
 import requests
 import telegram
 from dotenv import load_dotenv
+
+from settings import ENDPOINT, HEADERS, HOMEWORK_STATUSES, RETRY_TIME
 
 load_dotenv()
 
@@ -16,16 +18,6 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-RETRY_TIME = 600
-ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
-HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
-
-
-HOMEWORK_STATUSES = {
-    'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
-    'reviewing': 'Работа взята на проверку ревьюером.',
-    'rejected': 'Работа проверена: у ревьюера есть замечания.'
-}
 
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s',
@@ -69,69 +61,63 @@ def get_api_answer(current_timestamp):
                       f'выдает JSON. Код ответа API: {response.status_code}.')
         raise ValueError(f'Эндпоинт {ENDPOINT} не выдает JSON.'
                          f'Код ответа API: {response.status_code}.')
-    else:
-        return response
+    return response
 
 
 def check_response(response):
     """Проверяет ответ API на корректность."""
-    homework_list = response['homeworks']
-    if type(homework_list) != list:
-        logging.error('homeworks не содержит список')
-        raise KeyError('homeworks не содержит список')
-
+    if type(response) is dict:
+        homework_list = response['homeworks']
+        if type(homework_list) != list:
+            logging.error('homeworks не содержит список')
+            raise KeyError('homeworks не содержит список')
+    else:
+        logging.error('JSON пришел без словаря.')
+        raise TypeError('JSON пришел без словаря.')
     return homework_list
 
 
 def parse_status(homework):
     """Извлекает из информации о конкретной домашней работе."""
-    try:
-        homework_status = homework['status']
-    except Exception:
+    status = homework['status']
+    homework_name = homework['homework_name']
+    if not status:
         logging.error('В полученных с сервера данных '
                       'отсутствует ключ status.')
         raise KeyError('В полученных с сервера данных '
                        'отсутствует ключ status.')
-    try:
-        homework_name = homework['homework_name']
-    except Exception:
+    elif not homework_name:
         logging.error('В полученных с сервера данных '
                       'отсутствует ключ homework_name.')
         raise KeyError('В полученных с сервера данных '
                        'отсутствует ключ homework_name.')
-    if homework_status not in HOMEWORK_STATUSES.keys():
-        logging.error(f'Статус {homework_status} отсутствует '
+    if status not in HOMEWORK_STATUSES.keys():
+        logging.error(f'Статус {status} отсутствует '
                       'в словаре HOMEWORK_STATUSES.')
-        raise KeyError(f'Статус {homework_status} отсутствует '
+        raise KeyError(f'Статус {status} отсутствует '
                        'в словаре HOMEWORK_STATUSES.')
-    verdict = HOMEWORK_STATUSES[homework_status]
+    verdict = HOMEWORK_STATUSES[status]
 
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
 def check_tokens():
     """Проверяет доступность переменных окружения."""
-    venv = (bool(PRACTICUM_TOKEN),
-            bool(TELEGRAM_TOKEN),
-            bool(TELEGRAM_CHAT_ID))
-    if False in venv:
-        return False
-    else:
-        return True
+    return all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID])
 
 
 def main():
     """Основная логика работы бота."""
-    bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    current_timestamp = int(time.time())
-
-    error_message = ''
-
     if not check_tokens():
         logging.critical('Отсутствует обязательная переменная окружения. '
                          'Программа принудительно остановлена.')
         raise Exception('Отсутствует обязательная переменная окружения. '
                         'Программа принудительно остановлена.')
+
+    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    current_timestamp = int(time.time())
+
+    error_message = ''
 
     while True:
         try:
@@ -141,10 +127,8 @@ def main():
                 logging.debug('В ответе отсутствуют новые статусы.')
             else:
                 for homework in homeworks:
-                    msg = parse_status(homework)
-                    bot.send_message(TELEGRAM_CHAT_ID, msg)
+                    send_message(bot, parse_status(homework))
             current_timestamp = response['current_date']
-
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             if error_message != message:
@@ -152,7 +136,6 @@ def main():
                 error_message = message
         finally:
             time.sleep(RETRY_TIME)
-
 
 if __name__ == '__main__':
     main()
