@@ -82,12 +82,12 @@ def check_response(response):
 
 def parse_status(homework):
     """Извлекает из информации о конкретной домашней работе."""
-    if homework['status'] not in homework:
+    if 'status' not in homework:
         logging.error('В полученных с сервера данных '
                       'отсутствует ключ status.')
         raise KeyError('В полученных с сервера данных '
                        'отсутствует ключ status.')
-    elif homework['homework_name'] not in homework:
+    elif 'homework_name' not in homework:
         logging.error('В полученных с сервера данных '
                       'отсутствует ключ homework_name.')
         raise KeyError('В полученных с сервера данных '
