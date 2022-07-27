@@ -82,19 +82,21 @@ def check_response(response):
 
 def parse_status(homework):
     """Извлекает из информации о конкретной домашней работе."""
-    status = homework['status']
-    homework_name = homework['homework_name']
-    if not status:
+    if homework['status'] not in homework:
         logging.error('В полученных с сервера данных '
                       'отсутствует ключ status.')
         raise KeyError('В полученных с сервера данных '
                        'отсутствует ключ status.')
-    elif not homework_name:
+    elif homework['homework_name'] not in homework:
         logging.error('В полученных с сервера данных '
                       'отсутствует ключ homework_name.')
         raise KeyError('В полученных с сервера данных '
                        'отсутствует ключ homework_name.')
-    if status not in HOMEWORK_STATUSES.keys():
+
+    status = homework['status']
+    homework_name = homework['homework_name']
+
+    if status not in HOMEWORK_STATUSES:
         logging.error(f'Статус {status} отсутствует '
                       'в словаре HOMEWORK_STATUSES.')
         raise KeyError(f'Статус {status} отсутствует '
